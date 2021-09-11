@@ -8,6 +8,7 @@ Currently supporting Android only.
 2. Allow to configure pool size of the isolate (careful on this see Caveat section)
 3. Able to pass arguments for the function
 4. Able to return executing function value.
+5. Components of this plugn is re-usable.
 
 ## Caveat
 1. Not all plugin works, all pure dart plugin (example http package) should work.
@@ -58,4 +59,73 @@ String _exampleReturnString(String message) {
 Future<String> _exampleReturnStringFuture(String message) async {
   return message;
 }
+```
+
+You could also re-use this executor if you need to expand or re-use for background execution (in Android using Alarm Manager or Work Manager).
+First, your own customized plugin must be able to pass dispatcher callback and background channel name:
+```
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  MethodChannel _methodChannel = MethodChannel("myOwnMethodChannelName");
+  // you might need to implement initialize method to passed FlutterBackgroundExecutor callback and background channel name
+  // use this plugin default dispatcher flutterBackgroundExecutorDispatcher and default background channel name backgroundChannelName
+  // (make sure to import the package flutter_background_executor.dart )
+  _methodChannel.invokeMethod("initialize", {
+      "dispatcherCallback":
+          PluginUtilities.getCallbackHandle(flutterBackgroundExecutorDispatcher)
+              .toRawHandle(),
+      "backgroundChannelName": backgroundChannelName,
+    }).then((value) {
+    // you could invoke any method once it is initialized
+    });
+}   
+```
+Next, implement FlutterPlugin (android example):
+```
+public class BackgroundExecutorPlugin implements FlutterPlugin, MethodChannel.MethodCallHandler {
+    private FlutterPluginBinding mBinding;
+    private MethodChannel mMethodChannel;
+
+    @Override
+    public void onAttachedToEngine(@NonNull FlutterPluginBinding binding) {
+        mBinding = binding;
+        mMethodChannel =
+                new MethodChannel(
+                        binding.getBinaryMessenger(), "myOwnMethodChannelName");
+        mMethodChannel.setMethodCallHandler(this);
+    }
+
+    @Override
+    public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
+        mBinding = null;
+        if (mMethodChannel != null) {
+            mMethodChannel.setMethodCallHandler(null);
+            mMethodChannel = null;
+        }
+    }
+
+    @Override
+    public void onMethodCall(@NonNull MethodCall call, @NonNull MethodChannel.Result result) {
+        switch (call.method) {
+            case "initialize":
+                method_initialize(call, result);
+                break;
+            case "submitTask":
+                // Submit the function and function arguments to be queued in alarm manager or work manager
+                break;
+            default:
+                result.notImplemented();
+        }
+    }
+
+    private void method_initialize(MethodCall call, MethodChannel.Result result) {
+        Number dispatcherCallback = call.argument("dispatcherCallback");
+        String backgroundChannelName = call.argument("backgroundChannelName");
+        long dispatcherCallbackLong = dispatcherCallback.longValue();
+        // Initialize the pool here new FlutterExecutorPool(context, 1, dispatcherCallback, backgroundChannelName);
+        // OR save these values to shared preferences to be used in alarm manager or work manager tasks
+        result.success(null);
+    }
+}
+
 ```
