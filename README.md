@@ -129,3 +129,11 @@ public class BackgroundExecutorPlugin implements FlutterPlugin, MethodChannel.Me
 }
 
 ```
+
+## Support this project
+Consider donation to support this project
+<table>
+  <tr>
+    <td><a href="https://trakteer.id/rh-id">https://trakteer.id/rh-id</a></td>
+  </tr>
+</table>
